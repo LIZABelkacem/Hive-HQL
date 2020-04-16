@@ -1,0 +1,173 @@
+-- TP hive 
+-- NOM : BELKACEM
+-- Prénom : Liza
+--Numéro : 19008250
+
+
+-- Partie 01 :
+--  1/Création d’une base de données Hive + 2/ Association d’une table externe aux données des visiteurs :
+
+
+CREATE DATABASE IF NOT EXISTS our_data; 
+USE our_data;
+CREATE EXTERNAL TABLE IF NOT EXISTS visitors
+(lname STRING,
+fname STRING,
+time_of_arrival STRING,
+appt_scheduled_time STRING,
+meeting_location STRING,
+info_comment STRING
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
+LOCATION'/user/hive/warehouse/demo';
+
+
+LOAD DATA LOCAL INPATH '/home/cloudera/Desktop/visits.txt'
+OVERWRITE INTO TABLE visitors;
+
+
+-- 3/ Vérification de  l’état de la table en limitant à 20 lignes :
+SELECT* FROM visitors LIMIT 20;
+
+
+-- 4/ Affichage des lignes ayant la colonne lname qui commence par OME :
+SELECT* FROM visitors where lname LIKE "OME%";
+
+
+--5/  Comptage du  nombre de lignes de la table :
+SELECT count(*) FROM visitors;
+
+
+--6/  Suppression de la table externe et affichage du fichier visits.txt dans HDFS.
+DROP TABLE visitors;
+--hdfs dfs -put /home/cloudera/Desktop/visits.txt
+--hdfs dfs -cat /user/cloudera/visits.txt
+
+
+
+
+--7/  Recréation de  la table externe et intégration des données :
+CREATE EXTERNAL TABLE data_visitors
+(
+lname STRING,
+fname STRING,
+time_of_arrival STRING,
+appt_scheduled_time STRING,
+meeting_location STRING,
+info_comment STRING )
+PARTITIONED BY(year INT)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
+LOCATION'/user/hive/warehouse/demo';
+
+
+--  8/ Suppression de  la table finale :
+DROP TABLE data_visitors;
+-- On remarque que le contenu de la table a été supprimé, cependant la table existe toujours.
+
+
+--  Partie 02 :
+-- 1/ Création d’une nouvelle table externe :
+CREATE EXTERNAL TABLE IF NOT EXISTS wh_visits_finale
+(lname STRING,
+ fname STRING,
+ time_of_arrival STRING,
+ appt_scheduled_time STRING,
+ meeting_location STRING,
+info_comment STRING
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
+LOCATION'/user/hive/warehouse/demo';
+LOAD DATA LOCAL INPATH '/home/cloudera/Desktop/visits.txt'
+OVERWRITE INTO TABLE wh_visits_finale;
+
+
+SELECT* FROM wh_visits_finale WHERE time_of_arrival != "" LIMIT 20;
+
+
+-- 2/ Affichage des 10 premières visites :
+SELECT lname, fname from unix_time(unix_timestamp(time_of_arrival,'mm/dd/yyyy hh:mm'))    as visit from wh_visits_finale 
+WHERE time_of_arrival != ""    
+ORDER BY visit LIMIT 10 ; 
+
+
+--  La requête ci dessous serait correcte si le format de la date était en Anglais
+-- SELECT time_of_arrival FROM wh_visits_finale ORDER BY time_of_arrival LIMIT 10;
+
+
+
+
+-- 3/ Affichage de la dernière visite :
+SELECT lname, fname from unix_time(unix_timestamp(time_of_arrival,'mm/dd/yyyy hh:mm'))    AS visit from wh_visits_finale WHERE time_of_arrival != ""     ORDER BY visit DESC LIMIT 1; 
+--  La requête ci dessous serait correcte si le format de la date était en Anglais
+--  SELECT time_of_arrival FROM wh_visits_finale ORDER BY time_of_arrival DESC 
+LIMIT 1;
+
+
+
+
+
+
+
+
+
+
+--4/ Afficher  les commentaires les plus communs :
+SELECT count(info_comment) as topInfo_comment, info_comment FROM wh_visits_finale GROUP BY info_comment ORDER BY topInfo_comment DESC LIMIT 1;
+
+
+
+
+-- 5/ Afficher les commentaires les plus communs sans compter le  blanc :
+SELECT count(info_comment) as topInfo_comment, info_comment FROM wh_visits_finale WHERE info_comment != "" GROUP BY info_comment ORDER BY topInfo_comment DESC LIMIT 1;
+
+
+-- 6/Afficher les commentaires les moins fréquents : 
+SELECT count(info_comment) as topInfo_comment, info_comment FROM wh_visits_finale WHERE info_comment != "" GROUP BY info_comment ORDER BY topInfo_comment ASC LIMIT 1;
+
+
+--7/ Afficher les variations de RÉCEPTION GENERALE :
+--  SELECT COUNT (*) AS nb FROM wh_visits_finale  WHERE info_comment LIKE 'GENERAL RECEPTION%'; 
+
+
+-- 8/ Afficher les personnes qui ont le plus visités la maison blanche :
+SELECT lname, fname, count(*) as visites FROM wh_visits_finale WHERE meeting_location = "WH" GROUP BY lname, fname ORDER BY visites DESC LIMIT 5;
+
+
+-- 9/ Afficher les personnes qui ont le plus visités la maison blanche avec explain
+EXPLAIN SELECT lname, fname, count(*) as visites FROM wh_visits_finale WHERE meeting_location = "WH" GROUP BY lname, fname ORDER BY visites DESC LIMIT 5;
+-- Remarque :  On remarque qu'elle utilise MapR car il s'agit d'un calcul à effectuer 
+
+
+--10/ Afficher les 5 premiers enregistrements avec EXPLAIN :
+EXPLAIN SELECT* FROM wh_visits_finale LIMIT 5;
+-- Remarque :  On remarque qu'elle n'utilise pas le MapR contrairement à la question précédente 
+
+
+--11/  On remarque que dans le select 2 Hive n'utilise pas MapR car il en a pas besoin vu qu'il n'y a pas de calcul à effectuer contrairement au select 1 qui effectue des calculs.
+
+
+
+
+--Partie 03 : 
+--1/ hdfs dfs -copyFromLocal /home/cloudera/Desktop/twitter.data.txt /HDFS/HIVE; 
+--3/  create external table tweet 
+('user' struct<userlocation:string
+, id:int
+, name:string
+, screename:string
+,geonabled:boolean>
+, tweetmessage string
+, createddate string
+, geolocation string) 
+  row format SERDE 'org.apache.hive.hcatalog.data.JsonSerDe' 
+ LOCATION '/user/hive/warehouse/demo’ ;  
+load data local inpath '/home/cloudera/Desktop/twitter.data.txt' into table tweet;
+
+
+
+
+LOAD DATA LOCAL INPATH '/home/cloudera/Desktop/twitter.data.txt' into table tweet ;
+
+
+--2/ select tweetmessage from tweet where user.name = "Amiee";
+--3/ Les données sont bien chargées dans la table, mais faire des select reste impossible.
